@@ -1,13 +1,38 @@
 import os
+import re
 import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta
 
-# Variaveis para execução de codigos e caminhos para arquivos
-db_AcoesIBOV = r"C:\Users\João Vitor\OneDrive\Workspace - Python VS Code\Projetos - Produção\ProjetoInvestimento\Historico cotações\Ações IBOV"
 
-# Data inicial para  busca dos dados
-data_inicial = '2021-01-01'
+def lista_datas():
+    """
+    Extrai as datas salvas no diretorio de historico cotações para as acoes IBOV
+    Para evitar perdas é gerado a partir do penultimo registro ou seja mes anterior para evitar meses incompletos
+    """
+    datas_extraidas = []
+
+    # Lista de todos os arquivos salvos de AcoesIBOV
+    arquivos_csv = os.listdir(db_AcoesIBOV)
+
+    # Loop para a extração das datas de cada arquivo
+    for arquivo in arquivos_csv:
+        # Extrair datas usando expressão regular
+        match = re.search(r"(\d{2}_\d{4})", arquivo)
+        if match:
+            # Transformação em data completa "dd/mm/YYYY"
+            trecho = match.group(1).replace("_", "/")
+            data_formatada = f"01/{trecho}"
+
+            # Adiciona a as datas capturadas
+            datas_extraidas.append(data_formatada)
+
+    # Convertendo as datas extraidas e mantendo a penultima data "Gerando mes anterior e atual novamente"
+    datas_extraidas = pd.to_datetime(datas_extraidas, format='%d/%m/%Y')
+    datas_extraidas = sorted(datas_extraidas)
+    datas_extraidas = datas_extraidas[-2]
+    datas_extraidas = datetime.strftime(datas_extraidas, '%Y-%m-%d')
+    return datas_extraidas
 
 
 def obter_tickers() -> list:
@@ -105,6 +130,14 @@ def salvar_historico(data_inicial, db_AcoesIBOV):
 
         # Iterar a data atual para o mes seguinte
         data_atual = proximo_mes.replace(day=1)
+
+
+# Variaveis para execução de codigos e caminhos para arquivos
+db_AcoesIBOV = r"C:\Users\João Vitor\OneDrive\Workspace - Python VS Code\Projetos - Produção\ProjetoInvestimento\Historico cotações\Ações IBOV"
+
+# Seleção de datas iniciais caso não tenha nenhum arquivo salvo selecione a data fixa
+# data_inicial = '2018-01-01'
+data_inicial = lista_datas()
 
 
 salvar_historico(data_inicial, db_AcoesIBOV)
