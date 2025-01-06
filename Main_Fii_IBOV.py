@@ -30,10 +30,10 @@ def lista_datas():
     datas_extraidas = []
 
     # Lista de todos os arquivos salvos de AcoesIBOV
-    if not os.path.exists(db_AcoesIBOV):
-        raise FileNotFoundError(f'Diretorio não encontrado: {db_AcoesIBOV}')
+    if not os.path.exists(db_FiiIBOV):
+        raise FileNotFoundError(f'Diretorio não encontrado: {db_FiiIBOV}')
 
-    arquivos_csv = os.listdir(db_AcoesIBOV)
+    arquivos_csv = os.listdir(db_FiiIBOV)
 
     # Loop para a extração das datas de cada arquivo
     for arquivo in arquivos_csv:
@@ -48,14 +48,15 @@ def lista_datas():
             datas_extraidas.append(data_formatada)
 
     # Convertendo as datas extraidas e mantendo a penultima data "Gerando mes anterior e atual novamente"
-    if not datas_extraidas:
+    if not datas_extraidas: 
         print('Nenhuma data encontrada. Usando data padrão: 2018-01-01')
         return "2018-01-01"
     
+    # Convertendoo para datetime e obtendo a penúltima data
     datas_extraidas = pd.to_datetime(datas_extraidas, format='%d/%m/%Y')
     if len(datas_extraidas) < 2:
         return datas_extraidas[0].strftime('%Y-%m-%d')
-    
+
     datas_extraidas = sorted(datas_extraidas)[-2]
     return datas_extraidas.strftime('%Y-%m-%d')
 
@@ -69,7 +70,7 @@ def obter_tickers() -> list:
     """
 
     caminho_csv = os.path.join(
-        projeto, 'Indicadores Financeiros', 'indicadores_AcoesIBOV.csv')
+        projeto, 'Indicadores Financeiros', 'indicadores_FiiIBOV.csv')
 
     if not os.path.exists(caminho_csv):
         raise FileNotFoundError(f'Diretorio não encontrado: {caminho_csv}')
@@ -118,7 +119,7 @@ def obter_historico(StartDate, EndDate, Tickers):
         return None
 
 
-def salvar_historico(data_inicial, db_AcoesIBOV):
+def salvar_historico(data_inicial, db_FiiIBOV):
     """
     Gera o histórico mensalmente a partir de uma data inicial e salva todos os tickers em um arquivo mensal.
     Salva no diretorio especifico criando um "DataBase"
@@ -148,7 +149,7 @@ def salvar_historico(data_inicial, db_AcoesIBOV):
             dfMes = pd.concat(dfMes, ignore_index=True)
 
             # Criando o nome do arquivo para o mes e ano
-            nome_arquivo = os.path.join(db_AcoesIBOV, f'Acoes_IBOV_{
+            nome_arquivo = os.path.join(db_FiiIBOV, f'Fii_IBOV_{
                                         data_atual.strftime("%m")}_{data_atual.strftime("%Y")}.csv')
 
             # Salvar o arquivo
@@ -161,10 +162,10 @@ def salvar_historico(data_inicial, db_AcoesIBOV):
 
 # Variaveis para execução de codigos e caminhos para arquivos
 projeto = diretorio_projeto()
-db_AcoesIBOV = os.path.join(projeto, "Historico cotações", "Ações IBOV")
-os.makedirs(db_AcoesIBOV, exist_ok=True)
+db_FiiIBOV = os.path.join(projeto, "Historico cotações", "FII IBOV")
+os.makedirs(db_FiiIBOV, exist_ok=True)
 
 # Seleção de datas iniciais caso não tenha nenhum arquivo a data padrão é '2018-01-01'
 data_inicial = lista_datas()
 
-salvar_historico(data_inicial, db_AcoesIBOV)
+salvar_historico(data_inicial, db_FiiIBOV)
