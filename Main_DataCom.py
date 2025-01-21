@@ -29,13 +29,6 @@ def diretorio_projeto(nome_projeto="ProjetoInvestimento"):
         caminho_atual = caminho_superior
 
 
-def log_message(log_path, message):
-    print(message)
-    with open(log_path, "a", encoding="utf-8") as log_file:
-        log_file.write(f"{datetime.now().strftime(
-            '%Y-%m-%d %H:%M:%S')} - {message}\n")
-
-
 def click_with_retry(driver, element):
     for _ in range(3):  # Tentar clicar até 3 vezes
         try:
@@ -200,84 +193,59 @@ def extract_table_data(driver, wait):
         return pd.DataFrame()
 
 
-def obter_datas_mes(output_path, data_padrao="2024-01-01"):
+def lista_datas():
     """
-    Extrai as datas relevantes (mês anterior e atual) a partir de arquivos no diretório.
-    Caso nenhum arquivo seja encontrado, retorna o mês anterior e o mês atual com base na data padrão.
-
-    :param db_path: Caminho do diretório onde os arquivos estão localizados.
-    :param data_padrao: Data padrão no formato 'YYYY-MM-DD' caso nenhuma data seja encontrada.
-    :return: Lista de tuplas com (início, fim) para o mês anterior e o mês atual.
+    Extrai as datas salvas no diretorio de historico cotações para as acoes IBOV
+    Para evitar perdas é gerado a partir do penultimo registro ou seja mes anterior para evitar meses incompletos
     """
     datas_extraidas = []
 
-    # Verifica se o diretório existe
+    # Lista de todos os arquivos salvos de AcoesIBOV
     if not os.path.exists(output_path):
-        raise FileNotFoundError(f"Diretório não encontrado: {output_path}")
+        raise FileNotFoundError(f'Diretorio não encontrado: {output_path}')
 
-    # Lista os arquivos no diretório
     arquivos_csv = os.listdir(output_path)
 
-    # Extrai datas dos nomes dos arquivos
+    # Loop para a extração das datas de cada arquivo
     for arquivo in arquivos_csv:
-        match = re.search(r"(\d{2}_\d{4})", arquivo)  # Busca padrão `MM_YYYY`
+        # Extrair datas usando expressão regular
+        match = re.search(r"(\d{2}_\d{4})", arquivo)
         if match:
+            # Transformação em data completa "dd/mm/YYYY"
             trecho = match.group(1).replace("_", "/")
-            data_formatada = f"01/{trecho}"  # Sempre o primeiro dia do mês
+            data_formatada = f"01/{trecho}"
+
+            # Adiciona a as datas capturadas
             datas_extraidas.append(data_formatada)
 
-    # Define datas padrão se nenhuma data foi encontrada
+    # Convertendo as datas extraidas e mantendo a penultima data "Gerando mes anterior e atual novamente"
     if not datas_extraidas:
-        print(f"Nenhuma data encontrada. Usando data padrão: {data_padrao}")
-        datas_extraidas = [data_padrao]
+        return "2024-01-01"
 
-    # Verifica os formatos antes da conversão
-    datas_extraidas = [
-        pd.to_datetime(data, format="%d/%m/%Y", errors="coerce") if "/" in data else pd.to_datetime(data, format="%Y-%m-%d", errors="coerce")
-        for data in datas_extraidas
-    ]
+    datas_extraidas = pd.to_datetime(datas_extraidas, format='%d/%m/%Y')
+    if len(datas_extraidas) < 2:
+        return datas_extraidas[0].strftime('%Y-%m-%d')
 
-    # Remove valores inválidos (NaT)
-    datas_extraidas = [data for data in datas_extraidas if not pd.isnull(data)]
-
-    if not datas_extraidas:
-        raise ValueError("Nenhuma data válida encontrada.")
-
-    # Ordena as datas
-    datas_extraidas = sorted(datas_extraidas)
-
-    # Determina o mês anterior e o mês atual
-    today = datetime.now()
-    first_day_current_month = today.replace(day=1)
-    last_day_previous_month = first_day_current_month - timedelta(days=1)
-    first_day_previous_month = last_day_previous_month.replace(day=1)
-
-    # Retorna as datas relevantes como objetos datetime
-    return [
-        (first_day_previous_month, last_day_previous_month),  # Mês passado
-        (first_day_current_month, today),  # Mês atual
-    ]
+    datas_extraidas = sorted(datas_extraidas)[-2]
+    return datas_extraidas.strftime('%Y-%m-%d')
 
 
-# Configurações Gerais
-output_path = os.path.join(diretorio_projeto(), 'DataCom Proventos')
-# Caminho do arquivo de log
-log_path = os.path.join(output_path, "LOG_DATACOM.txt")
-os.makedirs(output_path, exist_ok=True)
+def salvar_datacom(data_inicial, output_path):
+    """
+    Gera o historio mes a mes a partir da data inicial
+    """
 
-# Limpando o log no início
-with open(log_path, "w", encoding="utf-8") as log_file:
-    log_file.write("Log iniciado\n")
+    data_final = datetime.now()
+    data_atual = datetime.strptime(
+        data_inicial, "%Y-%m-%d")  # Data do contexto
 
-# Loop pelos dois meses definidos
-for start_date, end_date in obter_datas_mes(output_path):
-    try:
-        start_date_str = start_date.strftime("%d/%m/%Y")
-        end_date_str = end_date.strftime("%d/%m/%Y")
+    while data_atual < data_final:
+        proximo_mes = data_atual + timedelta(days=31)
+        fim_mes = (proximo_mes.replace(day=1) - timedelta(days=1))
 
-        log_message(log_path, f"Extraindo dados para o período: {
-                    start_date_str} a {end_date_str}")
-
+        data_inicio = data_atual.strftime("%d/%m/%Y")
+        data_fim = fim_mes.strftime("%d/%m/%Y")
+        
         # Inicializar o driver
         driver = initialize_driver()
         wait = WebDriverWait(driver, 15)
@@ -287,20 +255,26 @@ for start_date, end_date in obter_datas_mes(output_path):
         driver.get(url)
         close_overlays(driver)
         select_countries(driver, wait)
-        select_dates(driver, wait, start_date=start_date_str,
-                     end_date=end_date_str)
+        select_dates(driver, wait, start_date=data_inicio,
+                     end_date=data_fim)
 
         # Extrair os dados
         df = extract_table_data(driver, wait)
         if not df.empty:
-            filename = f"DATACOM_{end_date_str.replace('/', '_')}.csv"
+            filename = f"DATACOM_{data_fim[2:].replace('/', '_')}.csv"
             filepath = os.path.join(output_path, filename)
             df.to_csv(filepath, sep=';', index=False, encoding="utf-8")
-            log_message(log_path, f"Dados salvos em {filepath}.")
 
-    except Exception as e:
-        log_message(log_path, f"Erro durante a extração para o período {
-                    start_date_str} a {end_date_str}: {e}")
-
-    finally:
         driver.quit()
+
+        data_atual = proximo_mes.replace(day=1)
+
+
+
+
+# Configurações Gerais
+output_path = os.path.join(diretorio_projeto(), 'DataCom Proventos')
+data_inicial = lista_datas()
+
+
+salvar_datacom(data_inicial, output_path)
